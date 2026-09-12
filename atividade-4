@@ -1,0 +1,466 @@
+#include "raylib.h"
+#include <stdlib.h>
+#include <math.h>
+#include <time.h>
+
+#define LARGURA_JANELA 800
+#define ALTURA_JANELA 600
+
+#define TOTAL_INIMIGOS 8
+#define VIDA_INICIAL 60
+#define DANO_TIRO 20
+
+// ==========================================
+// ESTADO DO INIMIGO
+// ==========================================
+
+typedef enum {
+    INIMIGO_VIVO,
+    INIMIGO_MORTO
+} EstadoInimigo;
+
+
+// ==========================================
+// STRUCT INIMIGO
+// ==========================================
+
+typedef struct {
+    Vector2 pos;
+    float raio;
+    int vida;
+    EstadoInimigo estado;
+} Inimigo;
+
+
+// ==========================================
+// INICIALIZAR INIMIGOS
+// ==========================================
+
+void inicializarInimigos(Inimigo *vetor, int n) {
+
+    for (int i = 0; i < n; i++) {
+
+        Inimigo *ini = vetor + i;
+
+        ini->pos = (Vector2){
+            GetRandomValue(50, LARGURA_JANELA - 50),
+            GetRandomValue(100, ALTURA_JANELA - 50)
+        };
+
+        ini->raio = 20;
+
+        ini->vida = VIDA_INICIAL;
+
+        ini->estado = INIMIGO_VIVO;
+    }
+}
+
+
+// ==========================================
+// ATINGIR INIMIGO
+// ==========================================
+
+void atingirInimigo(Inimigo *inimigo, int dano) {
+
+    if (inimigo == NULL ||
+        inimigo->estado == INIMIGO_MORTO) {
+
+        return;
+    }
+
+    inimigo->vida -= dano;
+
+    if (inimigo->vida <= 0) {
+
+        inimigo->vida = 0;
+
+        inimigo->estado = INIMIGO_MORTO;
+    }
+}
+
+
+// ==========================================
+// ENCONTRAR INIMIGO MAIS PRÓXIMO
+// ==========================================
+
+Inimigo *encontrarInimigoMaisProximo(
+    Inimigo *vetor,
+    int n,
+    Vector2 posJogador
+) {
+
+    Inimigo *maisProximo = NULL;
+
+    float menorDistancia = 0.0f;
+
+    for (int i = 0; i < n; i++) {
+
+        Inimigo *ini = vetor + i;
+
+        if (ini->estado == INIMIGO_MORTO) {
+            continue;
+        }
+
+        float dx =
+            ini->pos.x - posJogador.x;
+
+        float dy =
+            ini->pos.y - posJogador.y;
+
+        float distancia =
+            sqrtf(dx * dx + dy * dy);
+
+        if (maisProximo == NULL ||
+            distancia < menorDistancia) {
+
+            maisProximo = ini;
+
+            menorDistancia = distancia;
+        }
+    }
+
+    return maisProximo;
+}
+
+
+// ==========================================
+// EXERCÍCIO 1
+// CURAR TODOS OS INIMIGOS VIVOS
+// ==========================================
+
+void curarTodos(Inimigo *vetor, int n, int cura) {
+
+    for (int i = 0; i < n; i++) {
+
+        Inimigo *ini = vetor + i;
+
+        // Ignora inimigos mortos
+        if (ini->estado == INIMIGO_MORTO) {
+            continue;
+        }
+
+        ini->vida += cura;
+
+        // Vida máxima = 60
+        if (ini->vida > VIDA_INICIAL) {
+            ini->vida = VIDA_INICIAL;
+        }
+    }
+}
+
+
+// ==========================================
+// EXERCÍCIO 2
+// ENCONTRAR INIMIGO MAIS FRACO
+// ==========================================
+
+Inimigo *encontrarInimigoMaisFraco(
+    Inimigo *vetor,
+    int n
+) {
+
+    Inimigo *maisFraco = NULL;
+
+    for (int i = 0; i < n; i++) {
+
+        Inimigo *ini = vetor + i;
+
+        // Ignora inimigos mortos
+        if (ini->estado == INIMIGO_MORTO) {
+            continue;
+        }
+
+        // Primeiro inimigo vivo encontrado
+        // ou inimigo com menos vida
+        if (maisFraco == NULL ||
+            ini->vida < maisFraco->vida) {
+
+            maisFraco = ini;
+        }
+    }
+
+    return maisFraco;
+}
+
+
+// ==========================================
+// DESENHAR INIMIGO
+// ==========================================
+
+void desenharInimigo(Inimigo *inimigo) {
+
+    if (inimigo->estado == INIMIGO_MORTO) {
+
+        DrawCircleV(
+            inimigo->pos,
+            inimigo->raio,
+            GRAY
+        );
+
+        return;
+    }
+
+    DrawCircleV(
+        inimigo->pos,
+        inimigo->raio,
+        RED
+    );
+
+    DrawCircleLines(
+        (int)inimigo->pos.x,
+        (int)inimigo->pos.y,
+        inimigo->raio,
+        BLACK
+    );
+
+
+    // Barra de vida
+
+    int larguraBarra = 40;
+
+    int alturaBarra = 5;
+
+    int x =
+        (int)inimigo->pos.x - 20;
+
+    int y =
+        (int)inimigo->pos.y - 32;
+
+
+    DrawRectangle(
+        x,
+        y,
+        larguraBarra,
+        alturaBarra,
+        DARKGRAY
+    );
+
+
+    int larguraVida =
+        (larguraBarra * inimigo->vida)
+        / VIDA_INICIAL;
+
+
+    DrawRectangle(
+        x,
+        y,
+        larguraVida,
+        alturaBarra,
+        GREEN
+    );
+}
+
+
+// ==========================================
+// MAIN
+// ==========================================
+
+int main(void) {
+
+    srand((unsigned int)time(NULL));
+
+    InitWindow(
+        LARGURA_JANELA,
+        ALTURA_JANELA,
+        "Atividade 4 - Ponteiros para Struct"
+    );
+
+    SetTargetFPS(60);
+
+
+    // ======================================
+    // JOGADOR
+    // ======================================
+
+    Vector2 jogador = {
+        LARGURA_JANELA / 2.0f,
+        ALTURA_JANELA / 2.0f
+    };
+
+
+    // ======================================
+    // MALLOC DO VETOR DE INIMIGOS
+    // ======================================
+
+    Inimigo *inimigos =
+        (Inimigo *)malloc(
+            TOTAL_INIMIGOS * sizeof(Inimigo)
+        );
+
+
+    if (inimigos == NULL) {
+
+        CloseWindow();
+
+        return 1;
+    }
+
+
+    inicializarInimigos(
+        inimigos,
+        TOTAL_INIMIGOS
+    );
+
+
+    // ======================================
+    // LOOP PRINCIPAL
+    // ======================================
+
+    while (!WindowShouldClose()) {
+
+
+        // ==================================
+        // MOVIMENTO DO JOGADOR
+        // ==================================
+
+        if (IsKeyDown(KEY_RIGHT)) {
+            jogador.x += 4;
+        }
+
+        if (IsKeyDown(KEY_LEFT)) {
+            jogador.x -= 4;
+        }
+
+        if (IsKeyDown(KEY_UP)) {
+            jogador.y -= 4;
+        }
+
+        if (IsKeyDown(KEY_DOWN)) {
+            jogador.y += 4;
+        }
+
+
+        // ==================================
+        // LIMITES DA TELA
+        // ==================================
+
+        if (jogador.x < 20) {
+            jogador.x = 20;
+        }
+
+        if (jogador.x > LARGURA_JANELA - 20) {
+            jogador.x = LARGURA_JANELA - 20;
+        }
+
+        if (jogador.y < 20) {
+            jogador.y = 20;
+        }
+
+        if (jogador.y > ALTURA_JANELA - 20) {
+            jogador.y = ALTURA_JANELA - 20;
+        }
+
+
+        // ==================================
+        // ESPAÇO = ATACA O MAIS FRACO
+        // ==================================
+
+        if (IsKeyPressed(KEY_SPACE)) {
+
+            Inimigo *alvo =
+                encontrarInimigoMaisFraco(
+                    inimigos,
+                    TOTAL_INIMIGOS
+                );
+
+            atingirInimigo(
+                alvo,
+                DANO_TIRO
+            );
+        }
+
+
+        // ==================================
+        // C = CURA TODOS
+        // ==================================
+
+        if (IsKeyPressed(KEY_C)) {
+
+            curarTodos(
+                inimigos,
+                TOTAL_INIMIGOS,
+                10
+            );
+        }
+
+
+        // ==================================
+        // DESENHO
+        // ==================================
+
+        BeginDrawing();
+
+        ClearBackground(RAYWHITE);
+
+
+        // Desenha inimigos
+
+        for (int i = 0;
+             i < TOTAL_INIMIGOS;
+             i++) {
+
+            desenharInimigo(
+                inimigos + i
+            );
+        }
+
+
+        // Desenha jogador
+
+        DrawCircleV(
+            jogador,
+            20,
+            BLUE
+        );
+
+        DrawCircleLines(
+            (int)jogador.x,
+            (int)jogador.y,
+            20,
+            BLACK
+        );
+
+
+        // ==================================
+        // TEXTOS
+        // ==================================
+
+        DrawText(
+            "Setas = mover",
+            10,
+            10,
+            20,
+            BLACK
+        );
+
+        DrawText(
+            "ESPACO = atacar inimigo mais fraco",
+            10,
+            35,
+            20,
+            BLACK
+        );
+
+        DrawText(
+            "C = curar todos os inimigos vivos",
+            10,
+            60,
+            20,
+            BLACK
+        );
+
+
+        EndDrawing();
+    }
+
+
+    // ======================================
+    // LIBERA MEMÓRIA
+    // ======================================
+
+    free(inimigos);
+
+    CloseWindow();
+
+    return 0;
+}
