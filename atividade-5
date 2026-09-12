@@ -1,0 +1,819 @@
+#include "raylib.h"
+#include <stdlib.h>
+#include <math.h>
+#include <time.h>
+
+// ==========================================
+// CONSTANTES
+// ==========================================
+
+#define LARGURA_JANELA 800
+#define ALTURA_JANELA 600
+
+#define MAX_ENTIDADES 30
+
+#define RAIO_JOGADOR 20.0f
+
+
+// ==========================================
+// ENUM
+// ==========================================
+
+typedef enum {
+    ENTIDADE_JOGADOR,
+    ENTIDADE_INIMIGO,
+    ENTIDADE_ITEM
+} TipoEntidade;
+
+
+// ==========================================
+// UNION
+// ==========================================
+
+typedef union {
+    int dano;   // usado pelo inimigo
+    int valor;  // usado pelo item
+} ExtraEntidade;
+
+
+// ==========================================
+// STRUCT ENTIDADE
+// ==========================================
+
+typedef struct {
+    TipoEntidade tipo;
+
+    Vector2 pos;
+
+    float raio;
+
+    int vida;
+
+    Color cor;
+
+    ExtraEntidade extra;
+
+} Entidade;
+
+
+// ==========================================
+// VETOR DE PONTEIROS
+// ==========================================
+
+Entidade *vetorEntidades[MAX_ENTIDADES];
+
+int totalEntidades = 0;
+
+
+// ==========================================
+// CRIAR ENTIDADE
+// ==========================================
+
+Entidade *criarEntidade(TipoEntidade tipo, Vector2 pos) {
+
+    // Cada entidade recebe seu próprio malloc
+    Entidade *e =
+        (Entidade *)malloc(sizeof(Entidade));
+
+    if (e == NULL) {
+        return NULL;
+    }
+
+
+    e->tipo = tipo;
+
+    e->pos = pos;
+
+
+    // Define o tamanho dependendo do tipo
+
+    if (tipo == ENTIDADE_JOGADOR) {
+
+        e->raio = RAIO_JOGADOR;
+
+    }
+    else if (tipo == ENTIDADE_INIMIGO) {
+
+        e->raio = 15.0f;
+
+    }
+    else {
+
+        e->raio = 8.0f;
+    }
+
+
+    // ======================================
+    // CONFIGURA CADA TIPO
+    // ======================================
+
+    switch (tipo) {
+
+        case ENTIDADE_JOGADOR:
+
+            e->vida = 100;
+
+            e->cor = BLUE;
+
+            break;
+
+
+        case ENTIDADE_INIMIGO:
+
+            e->vida = 40;
+
+            e->cor = MAROON;
+
+            e->extra.dano =
+                GetRandomValue(5, 15);
+
+            break;
+
+
+        case ENTIDADE_ITEM:
+
+            e->vida = 1;
+
+            e->cor = GOLD;
+
+            e->extra.valor =
+                GetRandomValue(5, 20);
+
+            break;
+    }
+
+
+    return e;
+}
+
+
+// ==========================================
+// ADICIONAR ENTIDADE
+// ==========================================
+
+void adicionarEntidade(Entidade *e) {
+
+    if (e == NULL) {
+        return;
+    }
+
+
+    if (totalEntidades >= MAX_ENTIDADES) {
+
+        free(e);
+
+        return;
+    }
+
+
+    vetorEntidades[totalEntidades] = e;
+
+    totalEntidades++;
+}
+
+
+// ==========================================
+// REMOVER ENTIDADE
+// ==========================================
+
+void removerEntidade(int indice) {
+
+    if (indice < 0 ||
+        indice >= totalEntidades) {
+
+        return;
+    }
+
+
+    // Libera a memória da entidade
+
+    free(vetorEntidades[indice]);
+
+
+    // Coloca o último ponteiro
+    // no lugar do removido
+
+    vetorEntidades[indice] =
+        vetorEntidades[totalEntidades - 1];
+
+
+    totalEntidades--;
+}
+
+
+// ==========================================
+// DISTÂNCIA ENTRE DUAS POSIÇÕES
+// ==========================================
+
+float calcularDistancia(
+    Vector2 a,
+    Vector2 b
+) {
+
+    float dx = a.x - b.x;
+
+    float dy = a.y - b.y;
+
+
+    return sqrtf(
+        dx * dx + dy * dy
+    );
+}
+
+
+// ==========================================
+// EXERCÍCIO 1
+// ORDENAR POR DISTÂNCIA
+// ==========================================
+
+void ordenarPorDistancia(Entidade *jogador) {
+
+    if (jogador == NULL) {
+        return;
+    }
+
+
+    // A posição 0 é sempre o jogador.
+    //
+    // As posições 1 em diante são
+    // as outras entidades.
+
+
+    for (int i = 1; i < totalEntidades; i++) {
+
+        for (int j = i + 1;
+             j < totalEntidades;
+             j++) {
+
+
+            float distanciaI =
+                calcularDistancia(
+                    vetorEntidades[i]->pos,
+                    jogador->pos
+                );
+
+
+            float distanciaJ =
+                calcularDistancia(
+                    vetorEntidades[j]->pos,
+                    jogador->pos
+                );
+
+
+            // Se J estiver mais perto
+            // que I, troca os ponteiros
+
+            if (distanciaJ < distanciaI) {
+
+                Entidade *tmp =
+                    vetorEntidades[i];
+
+                vetorEntidades[i] =
+                    vetorEntidades[j];
+
+                vetorEntidades[j] =
+                    tmp;
+            }
+        }
+    }
+}
+
+
+// ==========================================
+// EXERCÍCIO 2
+// CRIAR ITEM ALEATÓRIO
+// ==========================================
+
+void criarNovoItem() {
+
+    // Verifica se ainda existe espaço
+
+    if (totalEntidades >= MAX_ENTIDADES) {
+
+        return;
+    }
+
+
+    Vector2 posicao = {
+
+        GetRandomValue(
+            30,
+            LARGURA_JANELA - 30
+        ),
+
+        GetRandomValue(
+            100,
+            ALTURA_JANELA - 30
+        )
+    };
+
+
+    Entidade *item =
+        criarEntidade(
+            ENTIDADE_ITEM,
+            posicao
+        );
+
+
+    adicionarEntidade(item);
+}
+
+
+// ==========================================
+// DESENHAR ENTIDADE
+// ==========================================
+
+void desenharEntidade(Entidade *e) {
+
+    if (e == NULL) {
+        return;
+    }
+
+
+    // ======================================
+    // JOGADOR
+    // ======================================
+
+    if (e->tipo == ENTIDADE_JOGADOR) {
+
+        DrawCircleV(
+            e->pos,
+            e->raio,
+            e->cor
+        );
+
+        DrawCircleLines(
+            (int)e->pos.x,
+            (int)e->pos.y,
+            e->raio,
+            BLACK
+        );
+
+        return;
+    }
+
+
+    // ======================================
+    // INIMIGO
+    // ======================================
+
+    if (e->tipo == ENTIDADE_INIMIGO) {
+
+        DrawCircleV(
+            e->pos,
+            e->raio,
+            e->cor
+        );
+
+        DrawCircleLines(
+            (int)e->pos.x,
+            (int)e->pos.y,
+            e->raio,
+            BLACK
+        );
+
+
+        // Barra de vida
+
+        DrawRectangle(
+            (int)e->pos.x - 15,
+            (int)e->pos.y - 25,
+            30,
+            5,
+            DARKGRAY
+        );
+
+
+        int larguraVida =
+            (30 * e->vida) / 40;
+
+
+        DrawRectangle(
+            (int)e->pos.x - 15,
+            (int)e->pos.y - 25,
+            larguraVida,
+            5,
+            GREEN
+        );
+
+
+        return;
+    }
+
+
+    // ======================================
+    // ITEM
+    // ======================================
+
+    if (e->tipo == ENTIDADE_ITEM) {
+
+        DrawCircleV(
+            e->pos,
+            e->raio,
+            e->cor
+        );
+
+        DrawCircleLines(
+            (int)e->pos.x,
+            (int)e->pos.y,
+            e->raio,
+            ORANGE
+        );
+
+
+        return;
+    }
+}
+
+
+// ==========================================
+// ENCONTRAR INIMIGO MAIS PRÓXIMO
+// ==========================================
+
+Entidade *encontrarInimigoMaisProximo(
+    Entidade *jogador
+) {
+
+    if (jogador == NULL) {
+        return NULL;
+    }
+
+
+    Entidade *maisProximo = NULL;
+
+    float menorDistancia = 0.0f;
+
+
+    for (int i = 1;
+         i < totalEntidades;
+         i++) {
+
+
+        Entidade *e =
+            vetorEntidades[i];
+
+
+        // Só considera inimigos
+
+        if (e->tipo != ENTIDADE_INIMIGO) {
+
+            continue;
+        }
+
+
+        if (e->vida <= 0) {
+
+            continue;
+        }
+
+
+        float distancia =
+            calcularDistancia(
+                e->pos,
+                jogador->pos
+            );
+
+
+        if (maisProximo == NULL ||
+            distancia < menorDistancia) {
+
+            maisProximo = e;
+
+            menorDistancia = distancia;
+        }
+    }
+
+
+    return maisProximo;
+}
+
+
+// ==========================================
+// ATINGIR INIMIGO
+// ==========================================
+
+void atingirInimigo(
+    Entidade *inimigo,
+    int dano
+) {
+
+    if (inimigo == NULL) {
+        return;
+    }
+
+
+    if (inimigo->tipo != ENTIDADE_INIMIGO) {
+        return;
+    }
+
+
+    if (inimigo->vida <= 0) {
+        return;
+    }
+
+
+    inimigo->vida -= dano;
+
+
+    if (inimigo->vida < 0) {
+
+        inimigo->vida = 0;
+    }
+}
+
+
+// ==========================================
+// MAIN
+// ==========================================
+
+int main(void) {
+
+    srand((unsigned int)time(NULL));
+
+
+    InitWindow(
+        LARGURA_JANELA,
+        ALTURA_JANELA,
+        "Atividade 5 - Vetor de ponteiros para struct"
+    );
+
+
+    SetTargetFPS(60);
+
+
+    // ======================================
+    // CRIA O JOGADOR
+    // ======================================
+
+    Vector2 posJogador = {
+
+        LARGURA_JANELA / 2.0f,
+
+        ALTURA_JANELA / 2.0f
+    };
+
+
+    Entidade *jogador =
+        criarEntidade(
+            ENTIDADE_JOGADOR,
+            posJogador
+        );
+
+
+    adicionarEntidade(jogador);
+
+
+    // ======================================
+    // CRIA INIMIGOS
+    // ======================================
+
+    for (int i = 0; i < 8; i++) {
+
+        Vector2 pos = {
+
+            GetRandomValue(
+                50,
+                LARGURA_JANELA - 50
+            ),
+
+            GetRandomValue(
+                100,
+                ALTURA_JANELA - 50
+            )
+        };
+
+
+        Entidade *inimigo =
+            criarEntidade(
+                ENTIDADE_INIMIGO,
+                pos
+            );
+
+
+        adicionarEntidade(inimigo);
+    }
+
+
+    // ======================================
+    // CRIA ITENS
+    // ======================================
+
+    for (int i = 0; i < 5; i++) {
+
+        Vector2 pos = {
+
+            GetRandomValue(
+                30,
+                LARGURA_JANELA - 30
+            ),
+
+            GetRandomValue(
+                100,
+                ALTURA_JANELA - 30
+            )
+        };
+
+
+        Entidade *item =
+            criarEntidade(
+                ENTIDADE_ITEM,
+                pos
+            );
+
+
+        adicionarEntidade(item);
+    }
+
+
+    // ======================================
+    // LOOP PRINCIPAL
+    // ======================================
+
+    while (!WindowShouldClose()) {
+
+
+        // ==================================
+        // MOVIMENTO DO JOGADOR
+        // ==================================
+
+        if (IsKeyDown(KEY_RIGHT)) {
+
+            jogador->pos.x += 4;
+        }
+
+
+        if (IsKeyDown(KEY_LEFT)) {
+
+            jogador->pos.x -= 4;
+        }
+
+
+        if (IsKeyDown(KEY_UP)) {
+
+            jogador->pos.y -= 4;
+        }
+
+
+        if (IsKeyDown(KEY_DOWN)) {
+
+            jogador->pos.y += 4;
+        }
+
+
+        // ==================================
+        // LIMITES DA TELA
+        // ==================================
+
+        if (jogador->pos.x < jogador->raio) {
+
+            jogador->pos.x =
+                jogador->raio;
+        }
+
+
+        if (jogador->pos.x >
+            LARGURA_JANELA - jogador->raio) {
+
+            jogador->pos.x =
+                LARGURA_JANELA - jogador->raio;
+        }
+
+
+        if (jogador->pos.y < jogador->raio) {
+
+            jogador->pos.y =
+                jogador->raio;
+        }
+
+
+        if (jogador->pos.y >
+            ALTURA_JANELA - jogador->raio) {
+
+            jogador->pos.y =
+                ALTURA_JANELA - jogador->raio;
+        }
+
+
+        // ==================================
+        // ESPAÇO = ATACAR
+        // ==================================
+
+        if (IsKeyPressed(KEY_SPACE)) {
+
+            Entidade *alvo =
+                encontrarInimigoMaisProximo(
+                    jogador
+                );
+
+
+            atingirInimigo(
+                alvo,
+                20
+            );
+        }
+
+
+        // ==================================
+        // EXERCÍCIO 2
+        // N = NOVO ITEM
+        // ==================================
+
+        if (IsKeyPressed(KEY_N)) {
+
+            criarNovoItem();
+        }
+
+
+        // ==================================
+        // EXERCÍCIO 1
+        // ORDENA POR DISTÂNCIA
+        // ==================================
+
+        ordenarPorDistancia(jogador);
+
+
+        // ==================================
+        // DESENHO
+        // ==================================
+
+        BeginDrawing();
+
+        ClearBackground(RAYWHITE);
+
+
+        // Desenha todas as entidades
+
+        for (int i = 0;
+             i < totalEntidades;
+             i++) {
+
+            desenharEntidade(
+                vetorEntidades[i]
+            );
+        }
+
+
+        // ==================================
+        // INFORMAÇÕES
+        // ==================================
+
+        DrawText(
+            "SETAS = mover jogador",
+            10,
+            10,
+            20,
+            BLACK
+        );
+
+
+        DrawText(
+            "ESPACO = atacar inimigo mais proximo",
+            10,
+            35,
+            20,
+            BLACK
+        );
+
+
+        DrawText(
+            "N = criar novo item",
+            10,
+            60,
+            20,
+            BLACK
+        );
+
+
+        DrawText(
+            TextFormat(
+                "Entidades: %d / %d",
+                totalEntidades,
+                MAX_ENTIDADES
+            ),
+            10,
+            90,
+            20,
+            DARKGRAY
+        );
+
+
+        EndDrawing();
+    }
+
+
+    // ======================================
+    // LIBERA TODAS AS ENTIDADES
+    // ======================================
+
+    for (int i = 0;
+         i < totalEntidades;
+         i++) {
+
+        free(vetorEntidades[i]);
+    }
+
+
+    CloseWindow();
+
+    return 0;
+}
